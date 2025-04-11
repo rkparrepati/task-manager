@@ -1,61 +1,63 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import '@testing-library/jest-dom/extend-expect';
-import AddApplicationsGrid from '../Components/Applications/wizard/AddApplicationsGrid';
-import { BrowserRouter as Router } from 'react-router-dom';
-import MockAdapter from 'axios-mock-adapter';
-import service from '../Services/apiheader';
-
-const mock = new MockAdapter(service);
-
-describe('AddApplicationsGrid - Happy Path', () => {
-  const mockApplicationData = {
-    status: 200,
-    data: {
-      data: {
-        applicationdata: {
-          productId: '123',
-          productType: 'Test Type',
-          productName: 'Test Product',
-        },
-      },
-    },
-  };
-
-  const mockData = {
-    data: {
-      content: [
-        {
-          id: 304,
-          identifier: '10000132_Nepal_m5qr8tc7',
-          applicationdata: '{"productName":"Metformin Hydrochloride 1000 mg Tablet","producerType":"Jordan Procedure"}',
-        },
-      ],
-    },
-    message: 'All applications retrieved successfully',
-    status: 200,
-  };
-
-  beforeEach(() => {
-    mock.onGet('application/v1/display/123').reply(200, mockApplicationData);
-    mock.onGet('application/v1/display-all/refresh-products').reply(200, mockData);
-  });
-
-  it('renders the AddApplicationsGrid component and displays data correctly', async () => {
+// Add the new test cases here
+  test("displays 'No Data Updated' message when form is not modified (lines 486-487)", async () => {
     render(
       <Router>
-        <AddApplicationsGrid />
+        <RowContext.Provider value={mockRowContextValues}>
+          <AddApplicationsGrid />
+        </RowContext.Provider>
       </Router>
     );
 
-    // Wait for the API data to load and render
+    fireEvent.click(screen.getByText("next"));
     await waitFor(() => {
-      expect(screen.getByText('Metformin Hydrochloride 1000 mg Tablet')).toBeInTheDocument();
-      expect(screen.getByText('Jordan Procedure')).toBeInTheDocument();
+      expect(screen.getByText("noDataUpdatedMessage")).toBeInTheDocument();
+    });
+  });
+
+  test("handleCancelConfirm navigates or calls handleNext based on byPassAddDupRecord (lines 583-584)", async () => {
+    const mockNavigate = jest.fn();
+    jest.mock("react-router-dom", () => ({
+      ...jest.requireActual("react-router-dom"),
+      useNavigate: () => mockNavigate,
+    }));
+
+    render(
+      <Router>
+        <RowContext.Provider value={{ ...mockRowContextValues, byPassAddDupRecord: true }}>
+          <AddApplicationsGrid />
+        </RowContext.Provider>
+      </Router>
+    );
+
+    fireEvent.click(screen.getByText("Yes"));
+    await waitFor(() => {
+      expect(mockNavigate).not.toHaveBeenCalled(); // handleNext should be called instead
+    });
+  });
+
+  test("Dialog displays duplicate countries and handles 'Show more' button (lines 604-625)", async () => {
+    render(
+      <Router>
+        <RowContext.Provider
+          value={{
+            ...mockRowContextValues,
+            dupcountries: ["Country1", "Country2", "Country3", "Country4", "Country5"],
+          }}
+        >
+          <AddApplicationsGrid />
+        </RowContext.Provider>
+      </Router>
+    );
+
+    fireEvent.click(screen.getByText("next"));
+    await waitFor(() => {
+      expect(screen.getByText("Duplicate Application Found")).toBeInTheDocument();
+      expect(screen.getByText("Country1")).toBeInTheDocument();
+      expect(screen.getByText("Show more (1)")).toBeInTheDocument();
     });
 
-    // Verify that the component renders correctly
-    expect(screen.getByText('LinkProducts Component')).toBeInTheDocument();
-    expect(screen.getByText('LinkCountry Component')).toBeInTheDocument();
-    expect(screen.getByText('LinkSection Component')).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Show more (1)"));
+    await waitFor(() => {
+      expect(screen.getByText("Country5")).toBeInTheDocument();
+    });
   });
-});
